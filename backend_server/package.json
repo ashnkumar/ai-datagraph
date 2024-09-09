@@ -1,0 +1,20 @@
+{
+  "name": "data-sovereignty-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@stardust-collective/dag4": "^2.2.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "firebase": "^10.13.1",
+    "firebase-admin": "^12.4.0"
+  }
+}

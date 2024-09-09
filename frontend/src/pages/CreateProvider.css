@@ -1,0 +1,109 @@
+.create-provider-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f7f7f7;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.provider-form {
+  display: grid;
+  grid-gap: 20px;
+}
+
+.grid-header {
+  display: grid;
+  grid-template-columns: 1fr 2fr; /* First column for empty space, second for "Share" */
+  margin-bottom: 10px;
+}
+
+.grid-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr; /* Label, Input, Checkbox */
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.health-data-table {
+  display: grid;
+  grid-gap: 10px;
+}
+
+.health-data-table .grid-row {
+  grid-template-columns: 2fr 1.5fr 3fr 1fr; /* Data, Frequency (wider), Description, Share */
+}
+
+.bold-label {
+  font-weight: bold;
+}
+
+.checkbox {
+  display: inline-block;
+}
+
+.connect-health-btn {
+  background-color: #0070f3;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.connect-health-btn img {
+  width: 20px;
+  margin-right: 10px;
+}
+
+.create-profile-btn {
+  background-color: #28a745;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #0070f3;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.success-check {
+  color: green;
+  font-size: 20px;
+}
+
+.customModal {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  max-width: 400px;
+  margin: auto;
+  text-align: center;
+}
+
+.modal-list {
+  list-style: none;
+  padding: 0;
+  text-align: left;
+}
+
+.modal-list li {
+  margin-bottom: 10px;
+}
