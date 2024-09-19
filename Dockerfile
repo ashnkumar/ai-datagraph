@@ -1,6 +1,5 @@
-# Base metagraph Dockerfile with PostgreSQL integration for private data storage
-
 ARG TESSELLATION_VERSION_NAME
+
 FROM metagraph-ubuntu-${TESSELLATION_VERSION_NAME}
 
 ARG SHOULD_BUILD_GLOBAL_L0
@@ -14,30 +13,17 @@ ENV LC_ALL C.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
+# Install PostgreSQL, Node.js, and npm
+RUN apt-get update && \
+  apt-get install -y \
+  postgresql postgresql-contrib curl
+
 COPY project/$TEMPLATE_NAME $TEMPLATE_NAME
 COPY global-l0/genesis/genesis.csv global-genesis.csv
 COPY metagraph-l0/genesis/genesis.csv metagraph-genesis.csv
 
 RUN mkdir shared_jars && mkdir shared_genesis
 
-# Install necessary packages and PostgreSQL for data storage
-RUN apt-get update && \
-  apt-get install -y \
-  postgresql postgresql-contrib curl && \
-  apt-get clean
-
-# PostgreSQL environment variables for private data storage
-ENV POSTGRES_USER=metagraph_user \
-  POSTGRES_DB=metagraph_private_data \
-  POSTGRES_PASSWORD=your_password
-
-# Expose PostgreSQL port
-EXPOSE 5432
-
-# Copy custom pg_hba.conf to override the default configuration
-RUN cat /etc/postgresql/12/main/pg_hba.conf
-
-# Build and copy the appropriate jars for the L0, DAG L1, Metagraph, Currency L1, and Data L1
 RUN set -e; \
   if [ "$SHOULD_BUILD_GLOBAL_L0" = "true" ]; then \
   mkdir global-l0 && \
@@ -96,7 +82,6 @@ RUN set -e; \
   cp data-l1/data-l1.jar shared_jars/data-l1.jar; \
   fi
 
-# Remove unnecessary files
 RUN rm -r -f cl-keytool.jar && \
   rm -r -f cl-wallet.jar && \
   rm -r -f global-l0.jar && \
@@ -106,50 +91,65 @@ RUN rm -r -f cl-keytool.jar && \
   rm -r -f tessellation && \
   rm -r -f $TEMPLATE_NAME
 
+# PostgreSQL environment variables
+ENV POSTGRES_USER=ai_datagraph \
+  POSTGRES_PASSWORD=ai_datagraph \
+  POSTGRES_DB=ai_datagraph
+
+# Expose ports for PostgreSQL and Node.js
+EXPOSE 5432
+
 # Create the directory for init scripts and add the init.sql script
 RUN mkdir -p /docker-entrypoint-initdb.d && \
-  echo "CREATE TABLE IF NOT EXISTS data_providers ( \
+  echo "CREATE TABLE private_data ( \
+  hash VARCHAR PRIMARY KEY, \
+  data JSONB NOT NULL \
+  );" > /docker-entrypoint-initdb.d/init.sql && \
+  echo "GRANT ALL PRIVILEGES ON TABLE private_data TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql && \
+  \
+  echo "CREATE TABLE data_providers ( \
   id SERIAL PRIMARY KEY, \
   wallet_address VARCHAR(255) UNIQUE NOT NULL, \
   private_key TEXT NOT NULL, \
   age INTEGER, \
-  gender VARCHAR(255), \
-  ethnicity VARCHAR(255), \
-  height FLOAT, \
-  weight FLOAT, \
-  sharing_preferences JSONB, \
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP \
-  );" > /docker-entrypoint-initdb.d/init.sql && \
-  echo "CREATE TABLE IF NOT EXISTS data_updates ( \
-  id SERIAL PRIMARY KEY, \
-  wallet_address VARCHAR(255) NOT NULL REFERENCES data_providers(wallet_address), \
-  private_data JSONB NOT NULL, \
-  hash VARCHAR(255) UNIQUE NOT NULL, \
-  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, \
-  usage_since_last_reward INTEGER DEFAULT 0, \
-  queries_used_in JSONB DEFAULT '[]'::jsonb, \
-  ai_engineer_id INTEGER REFERENCES ai_engineers(id) \
+  gender VARCHAR(50), \
+  ethnicity VARCHAR(100), \
+  height INTEGER, \
+  weight INTEGER, \
+  sharing_preferences JSONB NOT NULL \
   );" >> /docker-entrypoint-initdb.d/init.sql && \
-  echo "CREATE TABLE IF NOT EXISTS queries ( \
-  id SERIAL PRIMARY KEY, \
-  txn_hash VARCHAR(255), \
-  payment_amount FLOAT NOT NULL, \
-  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, \
-  data_updates JSONB NOT NULL, \
-  ai_engineer_id INTEGER REFERENCES ai_engineers(id), \
-  processed BOOLEAN DEFAULT FALSE \
-  );" >> /docker-entrypoint-initdb.d/init.sql && \
-  echo "CREATE TABLE IF NOT EXISTS ai_engineers ( \
+  echo "GRANT ALL PRIVILEGES ON TABLE data_providers TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql && \
+  \
+  echo "CREATE TABLE ai_engineers ( \
   id SERIAL PRIMARY KEY, \
   wallet_address VARCHAR(255) UNIQUE NOT NULL, \
   private_key TEXT NOT NULL, \
-  name VARCHAR(255) \
+  name VARCHAR(255) NOT NULL \
   );" >> /docker-entrypoint-initdb.d/init.sql && \
-  echo "GRANT ALL PRIVILEGES ON TABLE data_providers, data_updates, queries, ai_engineers TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql
+  echo "GRANT ALL PRIVILEGES ON TABLE ai_engineers TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql && \
+  \
+  echo "CREATE TABLE data_updates ( \
+  id SERIAL PRIMARY KEY, \
+  wallet_address VARCHAR(255) NOT NULL, \
+  private_data JSONB NOT NULL, \
+  hash VARCHAR(255) UNIQUE NOT NULL, \
+  usage_since_last_reward INTEGER DEFAULT 0 \
+  );" >> /docker-entrypoint-initdb.d/init.sql && \
+  echo "GRANT ALL PRIVILEGES ON TABLE data_updates TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql && \
+  \
+  echo "CREATE TABLE queries ( \
+  id SERIAL PRIMARY KEY, \
+  txn_hash VARCHAR(255) NOT NULL, \
+  payment_amount DECIMAL(18, 8) NOT NULL, \
+  ai_engineer_id INTEGER REFERENCES ai_engineers(id), \
+  data_updates JSONB NOT NULL, \
+  processed BOOLEAN DEFAULT FALSE \
+  );" >> /docker-entrypoint-initdb.d/init.sql && \
+  echo "GRANT ALL PRIVILEGES ON TABLE queries TO $POSTGRES_USER;" >> /docker-entrypoint-initdb.d/init.sql
 
-# Start PostgreSQL and initialize schema
+# Start PostgreSQL and Node.js together, and keep the container running
 CMD service postgresql start && \
   su - postgres -c "psql -c \"CREATE USER $POSTGRES_USER WITH PASSWORD '$POSTGRES_PASSWORD';\"" && \
   su - postgres -c "psql -c \"CREATE DATABASE $POSTGRES_DB WITH OWNER $POSTGRES_USER;\"" && \
   su - postgres -c "psql $POSTGRES_DB -f /docker-entrypoint-initdb.d/init.sql" && \
-  tail -f /dev/null
+  sh -c "while true; do sleep 86400; done"

@@ -1,119 +1,127 @@
 import Dependencies.*
 import sbt.*
+import sbt.Keys.*
 
-ThisBuild / organization := "com.my.ai_datagraph"
+ThisBuild / organization := "com.my"
 ThisBuild / scalaVersion := "2.13.10"
 ThisBuild / evictionErrorLevel := Level.Warn
+ThisBuild / scalafixDependencies += Libraries.organizeImports
 
 ThisBuild / assemblyMergeStrategy := {
   case "logback.xml" => MergeStrategy.first
   case x if x.contains("io.netty.versions.properties") => MergeStrategy.discard
+  case PathList("com", "my", "buildinfo", xs @ _*) => MergeStrategy.first
   case PathList(xs@_*) if xs.last == "module-info.class" => MergeStrategy.first
   case x =>
     val oldStrategy = (assembly / assemblyMergeStrategy).value
     oldStrategy(x)
 }
 
-lazy val root = (project in file(".")).
-  settings(
-    name := "ai_datagraph"
+lazy val commonSettings = Seq(
+  scalacOptions ++= List("-Ymacro-annotations", "-Yrangepos", "-Wconf:cat=unused:info", "-language:reflectiveCalls"),
+  resolvers += Resolver.mavenLocal,
+  resolvers += Resolver.githubPackages("abankowski", "http-request-signer"),
+) ++ Defaults.itSettings
+
+lazy val commonLibraryDependencies: Seq[ModuleID] = Seq(
+  CompilerPlugin.kindProjector,
+  CompilerPlugin.betterMonadicFor,
+  CompilerPlugin.semanticDB,
+  Libraries.tessellationNodeShared,
+  Libraries.cats,
+  Libraries.catsEffect,
+  Libraries.pureconfigCore,
+  Libraries.pureconfigCats
+)
+
+lazy val commonTestSettings = Seq(
+  testFrameworks += new TestFramework("weaver.framework.CatsEffect"),
+  libraryDependencies ++= Seq(
+    Libraries.weaverCats,
+    Libraries.weaverDiscipline,
+    Libraries.weaverScalaCheck,
+    Libraries.catsEffectTestkit
+  ).map(_ % Test)
+)
+
+lazy val buildInfoSettings = Seq(
+  buildInfoKeys := Seq[BuildInfoKey](
+    name,
+    version,
+    scalaVersion,
+    sbtVersion
+  ),
+  buildInfoPackage := "com.my.buildinfo"
+)
+
+lazy val root = (project in file("."))
+  .settings(
+    name := "todo"
   ).aggregate(sharedData, currencyL0, currencyL1, dataL1)
 
-lazy val sharedData = (project in file("modules/shared_data"))
-  .enablePlugins(AshScriptPlugin)
-  .enablePlugins(BuildInfoPlugin)
-  .enablePlugins(JavaAppPackaging)
+lazy val sharedData = (project in file("modules/shared-data"))
+  .enablePlugins(AshScriptPlugin, BuildInfoPlugin, JavaAppPackaging)
   .settings(
-    name := "ai_datagraph-shared_data",
-    scalacOptions ++= List("-Ymacro-annotations", "-Yrangepos", "-Wconf:cat=unused:info", "-language:reflectiveCalls"),
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "com.my.ai_datagraph.shared_data",
-    resolvers += Resolver.mavenLocal,
-    resolvers += Resolver.githubPackages("abankowski", "http-request-signer"),
-    Defaults.itSettings,
-    libraryDependencies ++= Seq(
-      CompilerPlugin.kindProjector,
-      CompilerPlugin.betterMonadicFor,
-      CompilerPlugin.semanticDB,
-      Libraries.tessellationNodeShared,
-      Libraries.requests,
-      Libraries.doobieCore,       // For Postgres integration
-      Libraries.doobieHikari,     // For connection pooling
-      Libraries.doobiePostgres,   // Postgres driver
-      Libraries.postgres          // Postgres dependency
-    )
-  )
-
-lazy val currencyL1 = (project in file("modules/l1"))
-  .enablePlugins(AshScriptPlugin)
-  .enablePlugins(BuildInfoPlugin)
-  .enablePlugins(JavaAppPackaging)
-  .settings(
-    name := "ai_datagraph-currency-l1",
-    scalacOptions ++= List("-Ymacro-annotations", "-Yrangepos", "-Wconf:cat=unused:info", "-language:reflectiveCalls"),
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "com.my.ai_datagraph.l1",
-    resolvers += Resolver.mavenLocal,
-    resolvers += Resolver.githubPackages("abankowski", "http-request-signer"),
-    Defaults.itSettings,
-    libraryDependencies ++= Seq(
-      CompilerPlugin.kindProjector,
-      CompilerPlugin.betterMonadicFor,
-      CompilerPlugin.semanticDB,
-      Libraries.tessellationCurrencyL1
+    buildInfoSettings,
+    commonSettings,
+    commonTestSettings,
+    name := "todo-shared-data",
+    libraryDependencies ++= commonLibraryDependencies ++ Seq(
+      Libraries.doobieCore,
+      Libraries.doobieHikari,
+      Libraries.doobiePostgres,
+      Libraries.postgres,
+      Libraries.http4sCore,
+      Libraries.http4sDsl,
+      Libraries.http4sCirce
     )
   )
 
 lazy val currencyL0 = (project in file("modules/l0"))
-  .enablePlugins(AshScriptPlugin)
-  .enablePlugins(BuildInfoPlugin)
-  .enablePlugins(JavaAppPackaging)
+  .enablePlugins(AshScriptPlugin, BuildInfoPlugin, JavaAppPackaging)
   .dependsOn(sharedData)
   .settings(
-    name := "ai_datagraph-currency-l0",
-    scalacOptions ++= List("-Ymacro-annotations", "-Yrangepos", "-Wconf:cat=unused:info", "-language:reflectiveCalls"),
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "com.my.ai_datagraph.l0",
-    resolvers += Resolver.mavenLocal,
-    resolvers += Resolver.githubPackages("abankowski", "http-request-signer"),
-    Defaults.itSettings,
-    libraryDependencies ++= Seq(
-      CompilerPlugin.kindProjector,
-      CompilerPlugin.betterMonadicFor,
-      CompilerPlugin.semanticDB,
-      Libraries.declineRefined,
-      Libraries.declineCore,
-      Libraries.declineEffect,
+    buildInfoSettings,
+    commonSettings,
+    commonTestSettings,
+    name := "todo-currency-l0",
+    libraryDependencies ++= commonLibraryDependencies ++ Seq(
       Libraries.tessellationCurrencyL0,
       Libraries.http4sCore,
       Libraries.http4sDsl,
       Libraries.http4sServer,
       Libraries.http4sClient,
-      Libraries.http4sCirce
+      Libraries.http4sCirce,
+      Libraries.doobieCore,
+      Libraries.doobieHikari,
+      Libraries.doobiePostgres,
+      Libraries.postgres,
+      Libraries.http4sCore,
+      Libraries.http4sDsl,
+      Libraries.http4sServer,
+      Libraries.http4sClient,
+      Libraries.http4sCirce      
     )
   )
 
-lazy val dataL1 = (project in file("modules/data_l1"))
-  .enablePlugins(AshScriptPlugin)
-  .enablePlugins(BuildInfoPlugin)
-  .enablePlugins(JavaAppPackaging)
+lazy val currencyL1 = (project in file("modules/l1"))
+  .enablePlugins(AshScriptPlugin, BuildInfoPlugin, JavaAppPackaging)
   .dependsOn(sharedData)
   .settings(
-    name := "ai_datagraph-data_l1",
-    scalacOptions ++= List("-Ymacro-annotations", "-Yrangepos", "-Wconf:cat=unused:info", "-language:reflectiveCalls"),
-    buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-    buildInfoPackage := "com.my.ai_datagraph.data_l1",
-    resolvers += Resolver.mavenLocal,
-    resolvers += Resolver.githubPackages("abankowski", "http-request-signer"),
-    Defaults.itSettings,
-    libraryDependencies ++= Seq(
-      CompilerPlugin.kindProjector,
-      CompilerPlugin.betterMonadicFor,
-      CompilerPlugin.semanticDB,
-      Libraries.tessellationCurrencyL1,
-      Libraries.doobieCore,       // For Postgres integration
-      Libraries.doobieHikari,     // For connection pooling
-      Libraries.doobiePostgres,   // Postgres driver
-      Libraries.postgres          // Postgres dependency
-    )
+    buildInfoSettings,
+    commonSettings,
+    commonTestSettings,
+    name := "todo-currency-l1",
+    libraryDependencies ++= (commonLibraryDependencies ++ Seq(Libraries.tessellationCurrencyL1))
+  )
+
+lazy val dataL1 = (project in file("modules/data_l1"))
+  .enablePlugins(AshScriptPlugin, BuildInfoPlugin, JavaAppPackaging)
+  .dependsOn(sharedData)
+  .settings(
+    buildInfoSettings,
+    commonSettings,
+    commonTestSettings,
+    name := "todo-data-l1",
+    libraryDependencies ++= (commonLibraryDependencies ++ Seq(Libraries.tessellationCurrencyL1))
   )
